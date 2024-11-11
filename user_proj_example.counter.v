@@ -83,37 +83,45 @@ module user_proj_example #(
     wire [31: 0] data_i;
     wire [31: 0] data_o;
     
-
-    assign WE = (4{wbs_we_i} & wbs_sel_i)
-    assign EN = (wbs_stb_i && wbs_cyc_i)? 1: 0;
+    assign valid = (wbs_adr_i[31: 24] == 32'h38)? 1'b1 : 1'b0;
+    assign s_start = valid & wbs_stb_i & wbs_cyc_i;
+    assign EN = (s_start)? 1'b1 : 1'b0;
+    assign WE = wbs_sel_i & 4{wbs_we_i};
     assign data_i = wbs_dat_i;
-    assign wbs_ack_o = (counter_r == 10)? 1: 0;
-    assign wbs_dat_o = (wbs_ack_o)? data_o: 0;
-// ----------------address---------------------
+    assign wbs_dat_o = data_o;
     assign addr = wbs_adr_i;
 
-//-----------------counter----------------------
+    assign wbs_ack_o = (counter_r == `DELAYS)? 1'b1 : 1'b0;
+    
+
+
     always@(*) begin
-        counter_w = counter_r
-        if(wbs_stb_i && wbs_cyc_i) begin
-            if(conter_w == 10) begin
-                counter_w = 0;
-            end
-            else begin
-                counter_w = counter_r + 1;
-            end
+        counter_w = counter_r;
+        
+        if(s_start & !wbs_ack_o) begin
+            counter_w <= counter_r + 1;
+        end
+        else begin
+            counter_w <= 0;
+        end
+        
+    end
+    always@(posedge wb_clk_i or negedge wb_rst_i) begin
+        if(!wb_rst_i) begin
+            counter_r <= 0;
+        end
+        else begin
+            
+            counter_r <= counter_w;
+            
         end
     end
-    
-    always@(posedge wb_clk_i or negedge wb_rst_i) begin
-        if(!wb_rst_i) begin counter_r <= 4'b0000; end
-        else begin counter_r <= counter_w; end
-    end
+
     
         
     bram user_bram (
         .CLK(wb_clk_i),
-        .WE0(we),
+        .WE0(WE),
         .EN0(EN),
         .Di0(data_i),
         .Do0(data_o),
